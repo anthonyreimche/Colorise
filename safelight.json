@@ -1,0 +1,13 @@
+{
+  "id": "colorise",
+  "name": "Colorise",
+  "version": "1.0.0",
+  "description": "A port of darktable's colorize module: lay a solid colour over the photo in Lab, with the photo's own lightness mixed back in, at any opacity; pick the hue from the image.",
+  "author": "Anthony Reimche",
+  "main": "dist/index.js",
+  "license": "GPL-3.0-or-later",
+  "categories": ["Develop", "Color"],
+  "keywords": ["darktable", "colorize", "colorise", "tint", "toning", "duotone", "sepia", "lab", "creative"],
+  "repository": "anthonyreimche/Colorise",
+  "minAppVersion": "3.1.0"
+}
