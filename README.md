@@ -57,8 +57,12 @@ display-referred image. Safelight's equivalent is its display-adjust phase: the
 stage runs on the display-encoded colour after the tone pipeline and before
 vignette and grain, and after the Colour Correction port when that is installed
 (darktable's pipe order). Per pixel it decodes with the host's transfer
-function, converts to D50 Lab, applies the formula, and encodes back, which
-clips anything the tint pushed out of gamut, as darktable's output stage would.
+function, converts to D50 Lab, applies the formula, and encodes back. On
+photos at the current processing, nothing is clipped on the way: values past
+white and colours outside sRGB, including any the tint creates, pass on to
+the tools after it, as darktable's Lab modules leave them; the photo is
+clipped only on output. On photos at older processing, the colour reaching
+the stage is already clipped to [0, 1].
 The tint's Lab is computed from the sliders inside the shader, so the saved
 edit holds darktable's own four parameters plus the opacity, and a preset that
 carries only some of them still renders right. At Opacity 0 the stage's branch

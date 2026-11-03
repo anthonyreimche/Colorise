@@ -15,6 +15,8 @@ import {
   XYZ_D50_TO_SRGB,
   coloriseLab,
   colorisePixel,
+  decodePerceptual,
+  encodePerceptual,
   hsl2rgb,
   hue2rgb,
   labFromLinearSrgb,
@@ -214,6 +216,17 @@ describe("Lab plumbing", () => {
     for (let i = 0; i <= 200; i++) expect(linearToSrgb(srgbToLinear(i / 200))).toBeCloseTo(i / 200, 9);
   });
 
+  it("the signed transfer functions are the host's on [0, 1] and keep sign and headroom beyond it", () => {
+    for (let i = 0; i <= 200; i++) {
+      expect(decodePerceptual(i / 200)).toBe(srgbToLinear(i / 200));
+      expect(encodePerceptual(i / 200)).toBe(linearToSrgb(i / 200));
+    }
+    expect(encodePerceptual(-0.2)).toBe(-encodePerceptual(0.2));
+    expect(decodePerceptual(-0.6)).toBe(-decodePerceptual(0.6));
+    expect(encodePerceptual(4)).toBeGreaterThan(1);
+    for (const v of [-3, -0.5, -0.001, 1.2, 4]) expect(decodePerceptual(encodePerceptual(v))).toBeCloseTo(v, 12);
+  });
+
   it("white is L 100 and neutral to darktable's rounded white point, black is L 0", () => {
     const white = labFromLinearSrgb([1, 1, 1]);
     expect(white[0]).toBeCloseTo(100, 3);
@@ -340,23 +353,45 @@ describe("colorisePixel (the shader's path on a display pixel)", () => {
     expect(near(colorisePixel([0.1, 0.2, 0.3], p), colorisePixel([0.9, 0.8, 0.7], p), 1e-9)).toBe(true);
   });
 
-  it("clips results outside the gamut to [0, 1]", () => {
+  it("keeps results outside the gamut, past white and below black", () => {
     // Pure blue at source mix 100 over a mid grey lands outside sRGB: its
-    // linear blue is above 1 before the encode clips it.
+    // linear blue is above 1.
     const p = P(2 / 3, 1, 50, 100, 100);
     const g = srgbToLinear(0.5);
     const lin = linearSrgbFromLab(coloriseLab(labFromLinearSrgb([g, g, g]), p));
     expect(lin[2]).toBeGreaterThan(1);
     const out = colorisePixel([0.5, 0.5, 0.5], p);
-    expect(out.every((v) => v >= 0 && v <= 1)).toBe(true);
-    expect(out[2]).toBeCloseTo(1, 12);
-    expect(out[0]).toBeCloseTo(linearToSrgb(lin[0]), 12);
-    expect(out[1]).toBeCloseTo(linearToSrgb(lin[1]), 12);
+    expect(out[2]).toBeGreaterThan(1);
+    for (let k = 0; k < 3; k++) expect(out[k]).toBeCloseTo(encodePerceptual(lin[k]), 12);
   });
 
-  it("clips the input to [0, 1] before decoding", () => {
-    const p = P(0, 0.5, 50, 50, 100);
-    expect(colorisePixel([1.4, -0.2, 0.5], p)).toEqual(colorisePixel([1, 0, 0.5], p));
+  it("carries a value past white and a negative channel through a faint tint", () => {
+    const c: Vec3 = [1.2, 0.9, -0.05];
+    const out = colorisePixel(c, P(0.1, 0.8, 50, 50, 0.05));
+    for (let k = 0; k < 3; k++) expect(Math.abs(out[k] - c[k])).toBeLessThan(1e-3);
+  });
+
+  it("matches the clipping path on in-range pixels whose result stays in gamut", () => {
+    const clipping = (px: Vec3, p: Params): Vec3 => {
+      const rgb = linearSrgbFromLab(coloriseLab(labFromLinearSrgb([srgbToLinear(px[0]), srgbToLinear(px[1]), srgbToLinear(px[2])]), p));
+      return [linearToSrgb(rgb[0]), linearToSrgb(rgb[1]), linearToSrgb(rgb[2])];
+    };
+    let worst = 0;
+    let compared = 0;
+    for (const p of [P(0.1, 0.5, 50, 80, 50), P(0.6, 0.3, 45, 60, 100), P(1 / 3, 0.6, 40, 50, 10)]) {
+      for (let i = 0; i <= 10; i++) {
+        for (let j = 0; j <= 10; j++) {
+          const px: Vec3 = [i / 10, j / 10, ((i * 3 + j) % 11) / 10];
+          const out = colorisePixel(px, p);
+          if (!out.every((v) => v >= 0 && v <= 1)) continue;
+          compared++;
+          const ref = clipping(px, p);
+          for (let k = 0; k < 3; k++) worst = Math.max(worst, Math.abs(out[k] - ref[k]));
+        }
+      }
+    }
+    expect(compared).toBeGreaterThan(100);
+    expect(worst).toBe(0);
   });
 
   it("a small opacity moves a pixel a little, toward the full result", () => {

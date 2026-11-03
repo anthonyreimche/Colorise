@@ -5,13 +5,19 @@
 // pipe orders the two modules. There is no prepass; the work is per pixel.
 //
 // The display colour `c` arrives sRGB-encoded. The stage declares the display's
-// own space, so on process version 2 the host hands it unclipped and the branch
-// clips it to [0, 1] itself, decodes it with the host's transfer function,
+// own space, so on process version 2 the host hands it unclipped. The branch
+// decodes it with the host's curve extended both ways (sign kept, no ceiling),
 // takes it to D50 Lab through darktable's matrix, colorises it, and encodes it
-// back, which clips anything out of gamut. The tint's Lab is computed from the
-// hue, saturation and lightness uniforms in the shader (uniform arithmetic the
-// driver hoists), so the bag holds darktable's own params and a preset that
-// carries only some of them still renders right. Every constant is formatted
+// back the same way, so values past white and colours outside sRGB come out as
+// darktable's Lab modules leave them, unclipped; on [0, 1] the curves are the
+// host's srgbToLinear and linearToSrgb. Declaring the linear encoding instead
+// would convert every pixel on every photo, rounding the idle stage's output
+// and costing two pows while it does nothing. Photos on process version 1
+// keep the shader they were edited with, which clipped `c` to [0, 1] and used
+// the host's clipping curves (SL_PROCESS_VERSION picks the path). The tint's
+// Lab is computed from the hue, saturation and lightness uniforms in the
+// shader (uniform arithmetic the driver hoists), so the bag holds darktable's
+// own params and a preset that carries only some of them still renders right. Every constant is formatted
 // from the model's numbers, so the shader and the CPU reference cannot drift.
 // At opacity 0 the branch is not taken and the stage is a bit-exact no-op.
 
@@ -48,6 +54,16 @@ const WHITE = `vec3(${D50_WHITE.map(glslLiteral).join(", ")})`;
 // Parameter and local names stay clear of the uniform keys, which the host
 // rewrites at identifier boundaries.
 const HELPERS = `
+#if SL_PROCESS_VERSION >= 2
+vec3 czDecode(vec3 y) {
+  vec3 a = abs(y);
+  return sign(y) * mix(a / 12.92, pow((a + 0.055) / 1.055, vec3(2.4)), step(0.04045, a));
+}
+vec3 czEncode(vec3 x) {
+  vec3 a = abs(x);
+  return sign(x) * mix(a * 12.92, 1.055 * pow(a, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, a));
+}
+#endif
 float czF(float t) {
   return t > ${EPS} ? pow(t, 1.0 / 3.0) : (${KAPPA} * t + 16.0) / 116.0;
 }
@@ -89,10 +105,18 @@ vec3 czHsl2Rgb(float h, float s, float l) {
 const INLINE = `
 {
   if (opacity > 0.0) {
+#if SL_PROCESS_VERSION >= 2
+    vec3 lab = czLab(czDecode(c));
+#else
     vec3 lab = czLab(srgbToLinear(clamp(c, 0.0, 1.0)));
+#endif
     vec3 tint = czLab(czHsl2Rgb(hue, saturation, lightness * 0.01));
     vec3 coloured = vec3(tint.x - sourceMix * 0.5 + lab.x * sourceMix * 0.01, tint.y, tint.z);
+#if SL_PROCESS_VERSION >= 2
+    c = czEncode(czRgb(mix(lab, coloured, opacity * 0.01)));
+#else
     c = linearToSrgb(czRgb(mix(lab, coloured, opacity * 0.01)));
+#endif
   }
 }
 `;
