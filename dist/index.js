@@ -275,6 +275,16 @@ function B(e) {
 	].map((t) => z(e[t])).join(", ")})`;
 }
 var V = z(l), H = z(d), U = z(u), W = `vec3(${a.map(z).join(", ")})`, G = `
+#if SL_PROCESS_VERSION >= 2
+vec3 czDecode(vec3 y) {
+  vec3 a = abs(y);
+  return sign(y) * mix(a / 12.92, pow((a + 0.055) / 1.055, vec3(2.4)), step(0.04045, a));
+}
+vec3 czEncode(vec3 x) {
+  vec3 a = abs(x);
+  return sign(x) * mix(a * 12.92, 1.055 * pow(a, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, a));
+}
+#endif
 float czF(float t) {
   return t > ${V} ? pow(t, 1.0 / 3.0) : (${U} * t + 16.0) / 116.0;
 }
@@ -309,7 +319,7 @@ vec3 czHsl2Rgb(float h, float s, float l) {
     czHue2Rgb(m1, m2, angle),
     czHue2Rgb(m1, m2, angle > 2.0 ? angle - 2.0 : angle + 4.0));
 }
-`, K = "\n{\n  if (opacity > 0.0) {\n    vec3 lab = czLab(srgbToLinear(clamp(c, 0.0, 1.0)));\n    vec3 tint = czLab(czHsl2Rgb(hue, saturation, lightness * 0.01));\n    vec3 coloured = vec3(tint.x - sourceMix * 0.5 + lab.x * sourceMix * 0.01, tint.y, tint.z);\n    c = linearToSrgb(czRgb(mix(lab, coloured, opacity * 0.01)));\n  }\n}\n", q = {
+`, K = "\n{\n  if (opacity > 0.0) {\n#if SL_PROCESS_VERSION >= 2\n    vec3 lab = czLab(czDecode(c));\n#else\n    vec3 lab = czLab(srgbToLinear(clamp(c, 0.0, 1.0)));\n#endif\n    vec3 tint = czLab(czHsl2Rgb(hue, saturation, lightness * 0.01));\n    vec3 coloured = vec3(tint.x - sourceMix * 0.5 + lab.x * sourceMix * 0.01, tint.y, tint.z);\n#if SL_PROCESS_VERSION >= 2\n    c = czEncode(czRgb(mix(lab, coloured, opacity * 0.01)));\n#else\n    c = linearToSrgb(czRgb(mix(lab, coloured, opacity * 0.01)));\n#endif\n  }\n}\n", q = {
 	hue: {
 		min: 0,
 		max: 1,

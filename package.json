@@ -1,7 +1,7 @@
 {
   "name": "safelight-colorise",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Colorise extension for Safelight: a port of darktable's colorize module, a solid colour over the photo in Lab with the photo's lightness mixed back in.",
   "type": "module",
   "scripts": {
