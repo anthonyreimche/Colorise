@@ -1,5 +1,5 @@
-// The eyedropper's testable parts: a click mapped to image UV through the
-// overlay rect under interface scaling, the 5×5 patch averaged as encoded
+// The eyedropper's testable parts: a press in the canvas's pixels mapped to
+// UV of the captured frame, the 5×5 patch averaged as encoded
 // sRGB, the capture taken with this stage's opacity at 0, and a pick written
 // to the bag as darktable's color_picker_apply does (hue and saturation from
 // rgb2hsl) in one commit that disarms the picker.
@@ -21,19 +21,14 @@ function frame(w: number, h: number, at: (x: number, y: number) => [number, numb
 }
 
 describe("pointToUv", () => {
-  const rect = { x: 100, y: 50, w: 400, h: 200 };
-
-  it("maps a client point inside the displayed image to 0..1", () => {
-    expect(pointToUv(300, 150, { left: 0, top: 0, width: 800, height: 600 }, 800, rect)).toEqual({ x: 0.5, y: 0.5 });
+  it("maps a press in the canvas's pixels to 0..1 of the frame", () => {
+    expect(pointToUv({ x: 200, y: 50 }, 400, 200)).toEqual({ x: 0.5, y: 0.25 });
   });
 
-  it("divides by the interface scale so a zoomed UI still lands on the pixel", () => {
-    expect(pointToUv(375, 187.5, { left: 0, top: 0, width: 1000, height: 750 }, 800, rect)).toEqual({ x: 0.5, y: 0.5 });
-  });
-
-  it("returns null outside the image or without a rect", () => {
-    expect(pointToUv(10, 10, { left: 0, top: 0, width: 800, height: 600 }, 800, rect)).toBeNull();
-    expect(pointToUv(300, 150, { left: 0, top: 0, width: 800, height: 600 }, 800, null)).toBeNull();
+  it("returns null off the frame or for the host's blank 1×1 frame", () => {
+    expect(pointToUv({ x: -1, y: 50 }, 400, 200)).toBeNull();
+    expect(pointToUv({ x: 200, y: 201 }, 400, 200)).toBeNull();
+    expect(pointToUv({ x: 0, y: 0 }, 1, 1)).toBeNull();
   });
 });
 

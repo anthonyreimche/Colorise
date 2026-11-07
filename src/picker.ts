@@ -1,50 +1,32 @@
 // The eyedropper: darktable's point colour picker on the hue slider. While it
-// is armed, a click-through overlay over the Develop canvas takes one plain
-// left click, maps it to image UV through the overlay rect (interface-scale
-// aware), captures the view with this stage's opacity at 0 (the module reads
-// its own input, as darktable's picker does), averages the 5×5 patch around
-// the pixel (the core white-balance eyedropper rule) as encoded sRGB and
-// writes the patch's HSL hue and saturation (color_picker_apply). Esc disarms;
-// core's Ctrl/⌘/Space passthrough keeps pan and zoom working. The overlay
-// draws nothing, and the pick stays armed, while the Crop tool, another core
-// tool or a core picker owns the canvas: the core enables its own pickers only
-// when no tool is active.
+// is armed it holds the canvas's pick-drag tool, so core routes a press on the
+// image to it, keeps Ctrl/⌘/Space for pan and zoom, lets go on Esc or when
+// another picker takes it, and stands it aside while a canvas tool (crop mode,
+// a mask brush, heal) holds the canvas. A press captures the view with this
+// stage's opacity at 0 (the module reads its own input, as darktable's picker
+// does), averages the 5×5 patch around the pixel (the core white-balance
+// eyedropper rule) as encoded sRGB and writes the patch's HSL hue and
+// saturation (color_picker_apply).
 
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { rgb2hsl, type Vec3 } from "./model";
 import { bagPatch, qualified, readParams } from "./params";
-import { api, h } from "./runtime";
-import type { OverlayRect } from "./safelight";
+import { api } from "./runtime";
+import type { CanvasPoint, PickDragTool } from "./safelight";
 import { store } from "./store";
 
 export const PATCH = 5;
-
-export interface ClientBox {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
 
 export interface Uv {
   x: number;
   y: number;
 }
 
-/** Client point → image UV through the displayed image rect. `clientWidth /
- *  box.width` is the interface scale (the body zoom), so a zoomed UI still
- *  lands on the pixel under the pointer. Null outside the image. */
-export function pointToUv(
-  clientX: number,
-  clientY: number,
-  box: ClientBox,
-  clientWidth: number,
-  rect: OverlayRect | null,
-): Uv | null {
-  if (!rect || box.width <= 0 || box.height <= 0 || rect.w <= 0 || rect.h <= 0) return null;
-  const scale = clientWidth / box.width;
-  const x = ((clientX - box.left) * scale - rect.x) / rect.w;
-  const y = ((clientY - box.top) * scale - rect.y) / rect.h;
+/** A press in the canvas's pixels → UV of a `width`×`height` frame aligned
+ *  1:1 with the canvas. Null off the frame or for the host's blank 1×1 frame. */
+export function pointToUv(point: CanvasPoint, width: number, height: number): Uv | null {
+  if (width < 2 || height < 2) return null;
+  const x = point.x / width;
+  const y = point.y / height;
   if (x < 0 || x > 1 || y < 0 || y > 1) return null;
   return { x, y };
 }
@@ -97,12 +79,13 @@ interface Patch {
   cy: number;
 }
 
-/** Read just the patch box out of a captured frame; closes the bitmap. Null
- *  for the host's 1×1 "no renderer" blank. */
-function readPatch(bitmap: ImageBitmap, uv: Uv): Patch | null {
+/** Read just the patch box at a press out of a captured frame; closes the
+ *  bitmap. Null off the frame and for the host's 1×1 "no renderer" blank. */
+function readPatch(bitmap: ImageBitmap, point: CanvasPoint): Patch | null {
   try {
     const { width: w, height: hgt } = bitmap;
-    if (w < 2 || hgt < 2) return null;
+    const uv = pointToUv(point, w, hgt);
+    if (!uv) return null;
     const px = Math.min(w - 1, Math.floor(uv.x * w));
     const py = Math.min(hgt - 1, Math.floor(uv.y * hgt));
     const half = PATCH >> 1;
@@ -119,13 +102,10 @@ function readPatch(bitmap: ImageBitmap, uv: Uv): Patch | null {
   }
 }
 
-async function pickAt(clientX: number, clientY: number, el: HTMLElement | null, rect: OverlayRect | null): Promise<void> {
+async function pickAt(point: CanvasPoint): Promise<void> {
   try {
-    if (!el) return;
     const photoId = api().stores.useDevelopStore.getState().photoId;
-    const uv = pointToUv(clientX, clientY, el.getBoundingClientRect(), el.clientWidth, rect);
-    if (!uv) return;
-    const patch = readPatch(await capturePreColorise(), uv);
+    const patch = readPatch(await capturePreColorise(), point);
     if (!patch || !pickStillWanted(photoId)) return;
     const rgb = patchColor(patch.data, patch.width, patch.height, patch.cx, patch.cy);
     if (rgb) commitPick(rgb);
@@ -134,39 +114,12 @@ async function pickAt(clientX: number, clientY: number, el: HTMLElement | null, 
   }
 }
 
-export function PickerOverlay() {
-  const { useEffect, useRef } = api().react;
-  const picking = store()((s) => s.picking);
-  const cropping = api().stores.useDevelopStore((s) => s.cropping);
-  const activeTool = api().stores.useDevelopStore((s) => s.activeTool);
-  const wbPicking = api().stores.useDevelopStore((s) => s.wbPicking);
-  const hslPicking = api().stores.useDevelopStore((s) => s.hslPicking);
-  const overlay = api().develop.useDevelopOverlay();
-  const ref = useRef<HTMLDivElement | null>(null);
+const PICK_TOOL: PickDragTool = { onPress: (point) => void pickAt(point) };
 
-  useEffect(() => {
-    if (!picking) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") store().getState().setPicking(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [picking]);
-
-  if (!picking || cropping || activeTool !== "none" || wbPicking || hslPicking) return null;
-  const style: CSSProperties = {
-    position: "absolute",
-    inset: 0,
-    pointerEvents: "auto",
-    cursor: api().cursors.resolve("pick"),
-  };
-  return h("div", {
-    ref,
-    style,
-    onPointerDown: (e: ReactPointerEvent<HTMLDivElement>) => {
-      if (e.button !== 0 || e.ctrlKey || e.metaKey) return;
-      e.preventDefault();
-      void pickAt(e.clientX, e.clientY, ref.current, overlay.rect);
-    },
+/** Hold the canvas's pick-drag tool while the eyedropper is armed, and let go
+ *  when it disarms. Returns the stop function. */
+export function syncPickDrag(): () => void {
+  return store().subscribe((state, prev) => {
+    if (state.picking !== prev.picking) api().develop.setPickDrag(state.picking ? PICK_TOOL : null);
   });
 }

@@ -31,9 +31,16 @@ const PICK_LABEL = "Pick hue from the image";
 export function ColorisePanel() {
   const { Slider } = api().components;
   const { Button, Row, Stack } = api().ui;
+  const { useEffect } = api().react;
   const scope = api().develop.useParamScope();
   const inMask = scope.maskId !== null;
   const picking = store()((s) => s.picking);
+  const holdsPickDrag = api().develop.usePickDragHeld();
+
+  // Core lets go of the tool on Escape or when another picker takes it.
+  useEffect(() => {
+    if (!inMask && picking && !holdsPickDrag) store().getState().setPicking(false);
+  }, [inMask, picking, holdsPickDrag]);
 
   const p = readParams(scope.getParams());
   // Drags outrun React's renders, so each change starts from the bag the

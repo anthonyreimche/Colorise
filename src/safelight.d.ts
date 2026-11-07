@@ -29,28 +29,8 @@ export interface DevelopStoreState {
   /** Extension stage params by qualified key. Values are whatever the owning
    *  stage wrote and come back from sidecar JSON: a runtime boundary. */
   paramBag: Record<string, unknown>;
-  /** The Crop tool is open; the view then draws a widened crop. */
-  cropping: boolean;
-  /** The core canvas tool in use (ToolMode); "none" when no tool owns the canvas. */
-  activeTool: "none" | "mask" | "retouch" | "hsl-picker";
-  /** The white-balance eyedropper is armed: its next click takes the canvas. */
-  wbPicking: boolean;
-  /** The HSL colour picker is armed: its click and drag take the canvas. */
-  hslPicking: boolean;
   setDynParams(patch: Record<string, unknown>): void;
   commitEdit(label: string): Promise<void>;
-}
-
-export interface OverlayRect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-export interface DevelopOverlayState {
-  rect: OverlayRect | null;
-  nonce: number;
 }
 
 export type GlslType = "float" | "int" | "bool" | "vec2" | "vec3" | "vec4" | "sampler2D";
@@ -126,11 +106,23 @@ export interface ParamScope {
   commit(label: string): void;
 }
 
-export interface SlotContribution {
-  id: string;
-  slot: "develop-canvas-overlay" | "develop-toolbar" | "library-toolbar" | "library-subbar";
-  component: ComponentType;
-  order?: number;
+/** A point in the develop canvas's pixels. */
+export interface CanvasPoint {
+  x: number;
+  y: number;
+}
+
+/** An eyedropper or on-image target tool that holds the canvas's pick-drag. */
+export interface PickDragTool {
+  /** A press on the image, as it happens. */
+  onPress?(point: CanvasPoint): void;
+  /** A press on the image with the colour the view shows there, sRGB 0-1,
+   *  once the probe answers; never for a press released before that. */
+  onDown?(rgb: readonly [number, number, number], point: CanvasPoint): void;
+  /** The drag, after an onDown. */
+  onMove?(point: CanvasPoint): void;
+  /** The drag ended, after an onDown. */
+  onUp?(): void;
 }
 
 export interface CaptureOptions {
@@ -199,8 +191,6 @@ export interface SafelightAPI {
   registerProcessingStage(c: ProcessingStageContribution): void;
   unregisterProcessingStage(id: string): void;
   registerPanel(c: PanelContribution): void;
-  registerSlot(c: SlotContribution): void;
-  unregisterSlot(id: string): void;
   components: {
     Slider: ComponentType<SliderProps>;
   };
@@ -209,14 +199,16 @@ export interface SafelightAPI {
     create<T>(init: StateCreator<T>): StoreApi<T>;
     useDevelopStore: StoreApi<DevelopStoreState>;
   };
-  cursors: {
-    resolve(token: string): string;
-  };
   develop: {
-    useDevelopOverlay(): DevelopOverlayState;
     captureFrame(params: DevelopParams, options?: CaptureOptions): Promise<ImageBitmap>;
     /** The mask's scope inside a mask's Adjust tab, the photo's anywhere else. */
     useParamScope(): ParamScope;
+    /** Hold the canvas's pick-drag tool, or with null let go of it. A held
+     *  Ctrl, Cmd or Space pans instead, and Escape lets go. One extension
+     *  holds it at a time: the last to set it. */
+    setPickDrag(tool: PickDragTool | null): void;
+    /** React hook: whether this extension holds the pick-drag tool. */
+    usePickDragHeld(): boolean;
   };
 }
 

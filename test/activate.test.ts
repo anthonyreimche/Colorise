@@ -6,14 +6,13 @@ import { activate, deactivate } from "../src/index";
 import { DEFAULT_PARAMS } from "../src/model";
 import { ColorisePanel } from "../src/Panel";
 import { PARAM_KEYS, STAGE_ID, qualified, readParams } from "../src/params";
-import { PickerOverlay } from "../src/picker";
 import { store } from "../src/store";
-import { fakeApi } from "./support/fake-api";
+import { fakeApi, fakeBitmap } from "./support/fake-api";
 
 describe("activate", () => {
   afterEach(() => deactivate());
 
-  it("registers the stage, the panel and the eyedropper overlay", () => {
+  it("registers the stage and the panel", () => {
     const rig = fakeApi();
     activate(rig.api);
     expect(rig.stages.map((s) => s.id)).toEqual([STAGE_ID]);
@@ -24,7 +23,24 @@ describe("activate", () => {
       component: ColorisePanel,
       defaultDock: { module: "develop", direction: "right", order: 7, width: 268 },
     });
-    expect(rig.slots).toMatchObject([{ id: "colorise.picker", slot: "develop-canvas-overlay", component: PickerOverlay, order: 60 }]);
+  });
+
+  it("holds core's pick-drag tool while the eyedropper is armed and lets it go when off", () => {
+    const rig = fakeApi();
+    activate(rig.api);
+    expect(rig.pickDrag.getState().held).toBeNull();
+    store().getState().setPicking(true);
+    expect(rig.pickDrag.getState().held).not.toBeNull();
+    store().getState().setPicking(false);
+    expect(rig.pickDrag.getState().held).toBeNull();
+  });
+
+  it("captures the view without Colorise on a press", () => {
+    const rig = fakeApi({}, () => Promise.resolve(fakeBitmap(1, 1)));
+    activate(rig.api);
+    store().getState().setPicking(true);
+    rig.pickDrag.getState().held?.onPress?.({ x: 1, y: 1 });
+    expect(rig.captures).toEqual([{ [qualified("opacity")]: 0 }]);
   });
 
   it("offers the panel in masks, owning exactly the keys the stage's mask copy reads", () => {
@@ -44,14 +60,14 @@ describe("activate", () => {
     expect(rig.commits).toEqual(["Colorise reset"]);
   });
 
-  it("disarms the picker and drops the stage and the overlay on deactivate", () => {
+  it("disarms the picker, lets the pick-drag go and drops the stage on deactivate", () => {
     const rig = fakeApi();
     activate(rig.api);
     store().getState().setPicking(true);
     deactivate();
     expect(store().getState().picking).toBe(false);
     expect(rig.unregisteredStages).toEqual([STAGE_ID]);
-    expect(rig.unregisteredSlots).toEqual(["colorise.picker"]);
+    expect(rig.pickDrag.getState().held).toBeNull();
   });
 });
 
@@ -68,7 +84,7 @@ describe("deactivate", () => {
 
   it("warns, rather than throws, when a teardown call fails", () => {
     const rig = fakeApi();
-    rig.api.unregisterSlot = () => {
+    rig.api.unregisterProcessingStage = () => {
       throw new Error("host gone");
     };
     activate(rig.api);

@@ -2,22 +2,22 @@
 //
 // A port of darktable's colorize module: a solid colour laid over the photo in
 // Lab, with the photo's own lightness mixed back in, at any opacity. Registers
-// the display-adjust stage (stage.ts), the Develop panel (Panel.ts) and the
-// eyedropper overlay (picker.ts).
+// the display-adjust stage (stage.ts) and the Develop panel (Panel.ts), and
+// holds core's pick-drag tool while the eyedropper is armed (picker.ts).
 
 import { ColorisePanel } from "./Panel";
 import { EXT_ID, PARAM_KEYS, STAGE_ID, qualified, resetPatch } from "./params";
-import { PickerOverlay } from "./picker";
+import { syncPickDrag } from "./picker";
 import { api, initRuntime } from "./runtime";
 import type { SafelightAPI } from "./safelight";
 import { coloriseStage } from "./stage";
 import { initStore, store } from "./store";
 
 const PANEL_ID = `${EXT_ID}.panel`;
-const PICKER_ID = `${EXT_ID}.picker`;
 
 // Null until activate() runs.
 let activeHost: SafelightAPI | null = null;
+let unsyncPickDrag: (() => void) | null = null;
 
 function reset(): void {
   const dev = api().stores.useDevelopStore.getState();
@@ -41,7 +41,7 @@ export function activate(host: SafelightAPI): void {
     // The same panel edits a mask's tint in the Masking panel's Adjust tab.
     mask: { component: ColorisePanel, owns: PARAM_KEYS.map(qualified) },
   });
-  host.registerSlot({ id: PICKER_ID, slot: "develop-canvas-overlay", component: PickerOverlay, order: 60 });
+  unsyncPickDrag = syncPickDrag();
 }
 
 export function deactivate(): void {
@@ -54,8 +54,10 @@ export function deactivate(): void {
   // throw here would skip that sweep, so a failure is logged instead.
   try {
     store().getState().setPicking(false);
+    unsyncPickDrag?.();
+    unsyncPickDrag = null;
+    host.develop.setPickDrag(null);
     host.unregisterProcessingStage(STAGE_ID);
-    host.unregisterSlot(PICKER_ID);
   } catch (err) {
     console.warn("[colorise] deactivate failed:", err);
   }

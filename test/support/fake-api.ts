@@ -1,6 +1,6 @@
 // A stand-in Safelight API over real React and zustand: the develop store
 // holds a param bag and records commits, registrations and captures are
-// recorded, and the slider and ui kit are plain DOM so Testing Library can
+// recorded, the pick-drag tool is held as core holds it, and the slider and ui kit are plain DOM so Testing Library can
 // find controls by their labels.
 
 import * as React from "react";
@@ -11,11 +11,11 @@ import type {
   DevelopStoreState,
   PanelContribution,
   ParamScope,
+  PickDragTool,
   ProcessingStageContribution,
   RowProps,
   SafelightAPI,
   SliderProps,
-  SlotContribution,
   StackProps,
   StateCreator,
   StoreApi,
@@ -69,9 +69,9 @@ export interface Rig {
   captures: Record<string, unknown>[];
   stages: ProcessingStageContribution[];
   panels: PanelContribution[];
-  slots: SlotContribution[];
   unregisteredStages: string[];
-  unregisteredSlots: string[];
+  /** The pick-drag tool this extension holds, or null. */
+  pickDrag: StoreApi<{ held: PickDragTool | null }>;
   /** Puts what renders from here on inside a mask holding `bag`, as the core's
    *  Masking panel does; returns the mask's store. */
   inMask(bag?: Record<string, unknown>): StoreApi<{ bag: Record<string, unknown> }>;
@@ -83,19 +83,14 @@ export function fakeApi(bag: Record<string, unknown> = {}, bitmap?: () => Promis
   const captures: Record<string, unknown>[] = [];
   const stages: ProcessingStageContribution[] = [];
   const panels: PanelContribution[] = [];
-  const slots: SlotContribution[] = [];
   const unregisteredStages: string[] = [];
-  const unregisteredSlots: string[] = [];
+  const pickDrag = create<{ held: PickDragTool | null }>()(() => ({ held: null }));
   let mask: StoreApi<{ bag: Record<string, unknown> }> | null = null;
   const develop: StoreApi<DevelopStoreState> = create<DevelopStoreState>()((set) => ({
     photoId: "p1",
     params: PARAMS,
     previewParams: null,
     paramBag: bag,
-    cropping: false,
-    activeTool: "none",
-    wbPicking: false,
-    hslPicking: false,
     setDynParams: (patch) => set((s) => ({ paramBag: { ...s.paramBag, ...patch } })),
     commitEdit: async (label) => {
       commits.push(label);
@@ -122,18 +117,13 @@ export function fakeApi(bag: Record<string, unknown> = {}, bitmap?: () => Promis
     registerProcessingStage: (c) => void stages.push(c),
     unregisterProcessingStage: (id) => void unregisteredStages.push(id),
     registerPanel: (c) => void panels.push(c),
-    registerSlot: (c) => void slots.push(c),
-    unregisterSlot: (id) => void unregisteredSlots.push(id),
     components: { Slider },
     ui,
     stores: {
       create: <T,>(init: StateCreator<T>) => create<T>()(init),
       useDevelopStore: develop,
     },
-    // A real CSS cursor, so jsdom keeps it on the element's style.
-    cursors: { resolve: (token) => (token === "pick" ? "crosshair" : "default") },
     develop: {
-      useDevelopOverlay: () => ({ rect: null, nonce: 0 }),
       captureFrame: (_params, options) => {
         captures.push(options?.paramBag ?? {});
         return bitmap ? bitmap() : new Promise<ImageBitmap>(() => undefined);
@@ -148,11 +138,13 @@ export function fakeApi(bag: Record<string, unknown> = {}, bitmap?: () => Promis
         develop((s) => s.paramBag);
         return photoScope;
       },
+      setPickDrag: (tool) => pickDrag.setState({ held: tool }),
+      usePickDragHeld: () => pickDrag((s) => s.held !== null),
     },
   };
   const inMask = (bag: Record<string, unknown> = {}) => {
     mask = create<{ bag: Record<string, unknown> }>()(() => ({ bag }));
     return mask;
   };
-  return { api, develop, commits, captures, stages, panels, slots, unregisteredStages, unregisteredSlots, inMask };
+  return { api, develop, commits, captures, stages, panels, unregisteredStages, pickDrag, inMask };
 }

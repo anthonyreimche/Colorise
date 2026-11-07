@@ -2,19 +2,27 @@
 // The Colorise panel in a DOM: darktable's four sliders then Opacity, on their
 // display scales; a drag writes the bag live and commits once on release; the
 // hue track carries darktable's seven stops and the saturation track ends at
-// the hue; the eyedropper arms and disarms; inside a mask the panel edits the
-// mask's bag and offers no eyedropper.
+// the hue; the eyedropper arms and disarms, and disarms when core lets its
+// pick-drag tool go; inside a mask the panel edits the mask's bag and offers
+// no eyedropper.
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { HUE_TRACK, ColorisePanel, saturationTrack } from "../src/Panel";
 import { qualified, readParams } from "../src/params";
+import { syncPickDrag } from "../src/picker";
 import { initRuntime } from "../src/runtime";
 import { initStore, store } from "../src/store";
 import { fakeApi, type Rig } from "./support/fake-api";
 
-afterEach(cleanup);
+let unsync: (() => void) | null = null;
+
+afterEach(() => {
+  cleanup();
+  unsync?.();
+  unsync = null;
+});
 
 let rig: Rig;
 
@@ -22,6 +30,7 @@ function mount(bag: Record<string, unknown> = {}) {
   rig = fakeApi(bag);
   initRuntime(rig.api);
   initStore();
+  unsync = syncPickDrag();
   render(React.createElement(ColorisePanel));
 }
 
@@ -111,6 +120,14 @@ describe("ColorisePanel", () => {
     fireEvent.click(pick);
     expect(store().getState().picking).toBe(false);
     expect(pick.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("disarms when core lets the pick-drag tool go (Esc, or another picker took it)", () => {
+    mount();
+    fireEvent.click(screen.getByLabelText("Pick hue from the image"));
+    expect(rig.pickDrag.getState().held).not.toBeNull();
+    act(() => rig.pickDrag.setState({ held: null }));
+    expect(store().getState().picking).toBe(false);
   });
 });
 
