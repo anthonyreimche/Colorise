@@ -86,39 +86,47 @@ function _(t) {
 	}
 	return n;
 }
-var v = () => g(e), y = null;
-function b(e) {
-	y = e;
+var ee = () => g(e), v = null;
+function y(e) {
+	v = e;
 }
-function x() {
-	if (!y) throw Error("[colorise] api() called before activate()");
-	return y;
+function b() {
+	if (!v) throw Error("[colorise] api() called before activate()");
+	return v;
 }
-function S(e, t, ...n) {
-	return x().react.createElement(e, t, ...n);
+function x(e, t, ...n) {
+	return b().react.createElement(e, t, ...n);
 }
 //#endregion
 //#region src/store.ts
-var C = null;
-function w() {
-	C = x().stores.create((e) => ({
+var S = null;
+function C() {
+	S = b().stores.create((e) => ({
 		picking: !1,
 		setPicking: (t) => e({ picking: t })
 	}));
 }
-function T() {
-	if (!C) throw Error("[colorise] store() called before activate()");
-	return C;
+function w() {
+	if (!S) throw Error("[colorise] store() called before activate()");
+	return S;
 }
 //#endregion
 //#region src/Panel.ts
-var E = "linear-gradient(to right, rgb(255,0,0) 0%, rgb(255,255,0) 16.6%, rgb(0,255,0) 32.2%, rgb(0,255,255) 49.8%, rgb(0,0,255) 66.4%, rgb(255,0,255) 83%, rgb(255,0,0) 100%)", D = (e) => `rgb(${e.map((e) => Math.round(e * 255)).join(",")})`;
-function O(e) {
-	return `linear-gradient(to right, rgb(51,51,51), ${D(n(e, 1, .5))})`;
+var T = "linear-gradient(to right, rgb(255,0,0) 0%, rgb(255,255,0) 16.6%, rgb(0,255,0) 32.2%, rgb(0,255,255) 49.8%, rgb(0,0,255) 66.4%, rgb(255,0,255) 83%, rgb(255,0,0) 100%)", E = (e) => `rgb(${e.map((e) => Math.round(e * 255)).join(",")})`;
+function D(e) {
+	return `linear-gradient(to right, rgb(51,51,51), ${E(n(e, 1, .5))})`;
 }
-var k = "Pick hue from the image";
-function A() {
-	let { Slider: e } = x().components, { Button: t, Row: n, Stack: r } = x().ui, i = x().develop.useParamScope(), a = i.maskId !== null, o = T()((e) => e.picking), s = _(i.getParams()), c = () => _(i.getParams()), l = (e) => i.setParams(g(e)), u = (e) => i.commit(`Colorise ${e}`), d = (t, n, r, i, a, o) => S(e, {
+var O = "Pick hue from the image";
+function k() {
+	let { Slider: e } = b().components, { Button: t, Row: n, Stack: r } = b().ui, { useEffect: i } = b().react, a = b().develop.useParamScope(), o = a.maskId !== null, s = w()((e) => e.picking), c = b().develop.usePickDragHeld();
+	i(() => {
+		!o && s && !c && w().getState().setPicking(!1);
+	}, [
+		o,
+		s,
+		c
+	]);
+	let l = _(a.getParams()), u = () => _(a.getParams()), d = (e) => a.setParams(g(e)), f = (e) => a.commit(`Colorise ${e}`), p = (t, n, r, i, a, o) => x(e, {
 		key: t,
 		label: t,
 		value: n,
@@ -127,53 +135,53 @@ function A() {
 		step: 1,
 		defaultValue: i,
 		trackBackground: o,
-		onChange: (e) => l(a(c(), e)),
-		onCommit: () => u(t.toLowerCase())
-	}), f = d("Hue", Math.round(s.hue * 360), 360, 0, (e, t) => ({
+		onChange: (e) => d(a(u(), e)),
+		onCommit: () => f(t.toLowerCase())
+	}), m = p("Hue", Math.round(l.hue * 360), 360, 0, (e, t) => ({
 		...e,
 		hue: t / 360
-	}), E), p = a ? null : S(t, {
+	}), T), h = o ? null : x(t, {
 		size: "sm",
-		active: o,
-		"aria-pressed": o,
+		active: s,
+		"aria-pressed": s,
 		title: "Pick the hue and saturation from the image (Esc cancels)",
-		"aria-label": k,
-		onClick: () => T().getState().setPicking(!o)
+		"aria-label": O,
+		onClick: () => w().getState().setPicking(!s)
 	}, "Pick");
-	return S(r, {
+	return x(r, {
 		gap: 2,
 		style: { padding: 8 }
-	}, S(n, {
+	}, x(n, {
 		gap: 4,
 		align: "center"
-	}, S("div", { style: {
+	}, x("div", { style: {
 		flex: "1 1 auto",
 		minWidth: 0
-	} }, f), p), d("Saturation", Math.round(s.saturation * 100), 100, 50, (e, t) => ({
+	} }, m), h), p("Saturation", Math.round(l.saturation * 100), 100, 50, (e, t) => ({
 		...e,
 		saturation: t / 100
-	}), O(s.hue)), d("Lightness", s.lightness, 100, 50, (e, t) => ({
+	}), D(l.hue)), p("Lightness", l.lightness, 100, 50, (e, t) => ({
 		...e,
 		lightness: t
-	})), d("Source mix", s.sourceMix, 100, 50, (e, t) => ({
+	})), p("Source mix", l.sourceMix, 100, 50, (e, t) => ({
 		...e,
 		sourceMix: t
-	})), d("Opacity", s.opacity, 100, 0, (e, t) => ({
+	})), p("Opacity", l.opacity, 100, 0, (e, t) => ({
 		...e,
 		opacity: t
 	})));
 }
 //#endregion
 //#region src/picker.ts
-function j(e, t, n, r, i) {
-	if (!i || n.width <= 0 || n.height <= 0 || i.w <= 0 || i.h <= 0) return null;
-	let a = r / n.width, o = ((e - n.left) * a - i.x) / i.w, s = ((t - n.top) * a - i.y) / i.h;
-	return o < 0 || o > 1 || s < 0 || s > 1 ? null : {
-		x: o,
-		y: s
+function A(e, t, n) {
+	if (t < 2 || n < 2) return null;
+	let r = e.x / t, i = e.y / n;
+	return r < 0 || r > 1 || i < 0 || i > 1 ? null : {
+		x: r,
+		y: i
 	};
 }
-function M(e, t, n, r, i) {
+function j(e, t, n, r, i) {
 	let a = [
 		0,
 		0,
@@ -190,69 +198,51 @@ function M(e, t, n, r, i) {
 		a[2] / o
 	];
 }
-function N() {
-	let e = x(), t = e.stores.useDevelopStore.getState();
+function M() {
+	let e = b(), t = e.stores.useDevelopStore.getState();
 	return e.develop.captureFrame(t.previewParams ?? t.params, { paramBag: { [h("opacity")]: 0 } });
 }
-function P(e) {
-	let t = x().stores.useDevelopStore.getState(), { h: n, s: r } = i(e);
+function N(e) {
+	let t = b().stores.useDevelopStore.getState(), { h: n, s: r } = i(e);
 	t.setDynParams(g({
 		..._(t.paramBag),
 		hue: n,
 		saturation: r
-	})), t.commitEdit("Colorise pick"), T().getState().setPicking(!1);
+	})), t.commitEdit("Colorise pick"), w().getState().setPicking(!1);
 }
-function F(e) {
-	return T().getState().picking && x().stores.useDevelopStore.getState().photoId === e;
+function P(e) {
+	return w().getState().picking && b().stores.useDevelopStore.getState().photoId === e;
 }
-function I(e, t) {
+function F(e, t) {
 	try {
-		let { width: n, height: r } = e;
-		if (n < 2 || r < 2) return null;
-		let i = Math.min(n - 1, Math.floor(t.x * n)), a = Math.min(r - 1, Math.floor(t.y * r)), o = Math.max(0, i - 2), s = Math.max(0, a - 2), c = Math.min(n - 1, i + 2) - o + 1, l = Math.min(r - 1, a + 2) - s + 1, u = new OffscreenCanvas(c, l).getContext("2d", { willReadFrequently: !0 });
-		return u ? (u.drawImage(e, o, s, c, l, 0, 0, c, l), {
-			data: u.getImageData(0, 0, c, l).data,
-			width: c,
-			height: l,
-			cx: i - o,
-			cy: a - s
+		let { width: n, height: r } = e, i = A(t, n, r);
+		if (!i) return null;
+		let a = Math.min(n - 1, Math.floor(i.x * n)), o = Math.min(r - 1, Math.floor(i.y * r)), s = Math.max(0, a - 2), c = Math.max(0, o - 2), l = Math.min(n - 1, a + 2) - s + 1, u = Math.min(r - 1, o + 2) - c + 1, d = new OffscreenCanvas(l, u).getContext("2d", { willReadFrequently: !0 });
+		return d ? (d.drawImage(e, s, c, l, u, 0, 0, l, u), {
+			data: d.getImageData(0, 0, l, u).data,
+			width: l,
+			height: u,
+			cx: a - s,
+			cy: o - c
 		}) : null;
 	} finally {
 		e.close();
 	}
 }
-async function L(e, t, n, r) {
+async function I(e) {
 	try {
-		if (!n) return;
-		let i = x().stores.useDevelopStore.getState().photoId, a = j(e, t, n.getBoundingClientRect(), n.clientWidth, r);
-		if (!a) return;
-		let o = I(await N(), a);
-		if (!o || !F(i)) return;
-		let s = M(o.data, o.width, o.height, o.cx, o.cy);
-		s && P(s);
+		let t = b().stores.useDevelopStore.getState().photoId, n = F(await M(), e);
+		if (!n || !P(t)) return;
+		let r = j(n.data, n.width, n.height, n.cx, n.cy);
+		r && N(r);
 	} catch (e) {
 		console.warn("[colorise] pick failed:", e);
 	}
 }
+var L = { onPress: (e) => void I(e) };
 function R() {
-	let { useEffect: e, useRef: t } = x().react, n = T()((e) => e.picking), r = x().stores.useDevelopStore((e) => e.cropping), i = x().stores.useDevelopStore((e) => e.activeTool), a = x().stores.useDevelopStore((e) => e.wbPicking), o = x().stores.useDevelopStore((e) => e.hslPicking), s = x().develop.useDevelopOverlay(), c = t(null);
-	return e(() => {
-		if (!n) return;
-		let e = (e) => {
-			e.key === "Escape" && T().getState().setPicking(!1);
-		};
-		return window.addEventListener("keydown", e), () => window.removeEventListener("keydown", e);
-	}, [n]), !n || r || i !== "none" || a || o ? null : S("div", {
-		ref: c,
-		style: {
-			position: "absolute",
-			inset: 0,
-			pointerEvents: "auto",
-			cursor: x().cursors.resolve("pick")
-		},
-		onPointerDown: (e) => {
-			e.button !== 0 || e.ctrlKey || e.metaKey || (e.preventDefault(), L(e.clientX, e.clientY, c.current, s.rect));
-		}
+	return w().subscribe((e, t) => {
+		e.picking !== t.picking && b().develop.setPickDrag(e.picking ? L : null);
 	});
 }
 //#endregion
@@ -369,51 +359,46 @@ function X() {
 		uniforms: Y,
 		presetScope: "global",
 		mask: { maskable: !0 },
-		after: ["colour-correction.lab"]
+		after: ["colour-correction.lab", "saturation-curve.lab"]
 	};
 }
 //#endregion
 //#region src/index.ts
-var Z = `${f}.panel`, Q = `${f}.picker`, $ = null;
-function ee() {
-	let e = x().stores.useDevelopStore.getState();
-	e.setDynParams(v()), e.commitEdit("Colorise reset");
+var Z = `${f}.panel`, Q = null, $ = null;
+function te() {
+	let e = b().stores.useDevelopStore.getState();
+	e.setDynParams(ee()), e.commitEdit("Colorise reset");
 }
-function te(e) {
-	b(e), w(), $ = e, e.registerProcessingStage(X()), e.registerPanel({
+function ne(e) {
+	y(e), C(), Q = e, e.registerProcessingStage(X()), e.registerPanel({
 		id: Z,
 		title: "Colorise",
-		component: A,
+		component: k,
 		defaultDock: {
 			module: "develop",
 			direction: "right",
 			order: 7,
 			width: 268
 		},
-		onReset: ee,
+		onReset: te,
 		mask: {
-			component: A,
+			component: k,
 			owns: m.map(h)
 		}
-	}), e.registerSlot({
-		id: Q,
-		slot: "develop-canvas-overlay",
-		component: R,
-		order: 60
-	});
+	}), $ = R();
 }
-function ne() {
-	let e = $;
+function re() {
+	let e = Q;
 	if (e) {
-		$ = null;
+		Q = null;
 		try {
-			T().getState().setPicking(!1), e.unregisterProcessingStage(p), e.unregisterSlot(Q);
+			w().getState().setPicking(!1), $?.(), $ = null, e.develop.setPickDrag(null), e.unregisterProcessingStage(p);
 		} catch (e) {
 			console.warn("[colorise] deactivate failed:", e);
 		}
 	}
 }
 //#endregion
-export { te as activate, ne as deactivate };
+export { ne as activate, re as deactivate };
 
 //# sourceMappingURL=index.js.map

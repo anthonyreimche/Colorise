@@ -55,8 +55,8 @@ channel.
 darktable applies this in the Lab section of its pipeline, on the
 display-referred image. Safelight's equivalent is its display-adjust phase: the
 stage runs on the display-encoded colour after the tone pipeline and before
-vignette and grain, and after the Colour Correction port when that is installed
-(darktable's pipe order). Per pixel it decodes with the host's transfer
+vignette and grain, and after the Colour Correction and Saturation Curve ports
+when those are installed (darktable's pipe order). Per pixel it decodes with the host's transfer
 function, converts to D50 Lab, applies the formula, and encodes back. On
 photos at the current processing, nothing is clipped on the way: values past
 white and colours outside sRGB, including any the tint creates, pass on to

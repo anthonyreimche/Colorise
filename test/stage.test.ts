@@ -1,6 +1,6 @@
 // The GPU stage as a contract: one inline display-adjust stage on the
-// perceptual encoding, maskable, ordered after Colour Correction as in
-// darktable's pipe; its uniforms exactly the bag keys with darktable's
+// perceptual encoding, maskable, ordered after Colour Correction and
+// Saturation Curve as in darktable's pipe; its uniforms exactly the bag keys with darktable's
 // defaults; gated off at opacity 0 and carrying signed, over-range values
 // through its Lab round trip unclipped;
 // no texture fetches or loops; decimal-point literals; its colour constants
@@ -69,13 +69,13 @@ describe("glslLiteral", () => {
 });
 
 describe("colorise stage", () => {
-  it("is one inline display-adjust stage on the perceptual encoding, maskable, after Colour Correction", () => {
+  it("is one inline display-adjust stage on the perceptual encoding, maskable, after Colour Correction and Saturation Curve", () => {
     expect(stage.id).toBe(STAGE_ID);
     expect(stage.name).toBe("Colorise");
     expect(stage.phase).toBe("display-adjust");
     expect(stage.space).toEqual({ encoding: "perceptual" });
     expect(stage.mask).toEqual({ maskable: true });
-    expect(stage.after).toEqual(["colour-correction.lab"]);
+    expect(stage.after).toEqual(["colour-correction.lab", "saturation-curve.lab"]);
     expect(stage.presetScope).toBe("global");
     expect(Object.keys(stage).sort()).toEqual(["after", "glsl", "helpers", "id", "mask", "name", "phase", "presetScope", "space", "uniforms"]);
   });

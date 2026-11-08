@@ -1,8 +1,8 @@
 // The GPU side: darktable's colorize as one inline fragment in the host's
 // display-adjust phase, the point in Safelight's pipeline that matches
 // darktable's Lab section (display-referred, after the tone transform, before
-// vignette and grain), ordered after the Colour Correction port as darktable's
-// pipe orders the two modules. There is no prepass; the work is per pixel.
+// vignette and grain), ordered after the Colour Correction and Saturation Curve
+// ports as darktable's pipe orders those modules. There is no prepass; the work is per pixel.
 //
 // The display colour `c` arrives sRGB-encoded. The stage declares the display's
 // own space, so on process version 2 the host hands it unclipped. The branch
@@ -158,6 +158,6 @@ export function coloriseStage(): ProcessingStageContribution {
     // A mask's copy runs at the defaults until its opacity moves, so the gate
     // keeps an untouched mask bit-exact too.
     mask: { maskable: true },
-    after: ["colour-correction.lab"],
+    after: ["colour-correction.lab", "saturation-curve.lab"],
   };
 }
