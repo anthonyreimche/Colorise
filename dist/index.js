@@ -359,7 +359,11 @@ function X() {
 		uniforms: Y,
 		presetScope: "global",
 		mask: { maskable: !0 },
-		after: ["colour-correction.lab", "saturation-curve.lab"]
+		after: [
+			"colour-correction.lab",
+			"saturation-curve.lab",
+			"colour-zones.lab"
+		]
 	};
 }
 //#endregion

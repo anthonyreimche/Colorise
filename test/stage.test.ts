@@ -75,7 +75,7 @@ describe("colorise stage", () => {
     expect(stage.phase).toBe("display-adjust");
     expect(stage.space).toEqual({ encoding: "perceptual" });
     expect(stage.mask).toEqual({ maskable: true });
-    expect(stage.after).toEqual(["colour-correction.lab", "saturation-curve.lab"]);
+    expect(stage.after).toEqual(["colour-correction.lab", "saturation-curve.lab", "colour-zones.lab"]);
     expect(stage.presetScope).toBe("global");
     expect(Object.keys(stage).sort()).toEqual(["after", "glsl", "helpers", "id", "mask", "name", "phase", "presetScope", "space", "uniforms"]);
   });
