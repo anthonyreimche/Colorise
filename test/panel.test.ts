@@ -9,33 +9,25 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, describe, expect, it } from "vitest";
+import { hsl2rgb, linearToSrgb, rgb2hsl } from "../src/model";
 import { HUE_TRACK, ColorisePanel, saturationTrack } from "../src/Panel";
 import { qualified, readParams } from "../src/params";
-import { syncPickDrag } from "../src/picker";
 import { initRuntime } from "../src/runtime";
-import { initStore, store } from "../src/store";
 import { fakeApi, type Rig } from "./support/fake-api";
 
-let unsync: (() => void) | null = null;
-
-afterEach(() => {
-  cleanup();
-  unsync?.();
-  unsync = null;
-});
+afterEach(cleanup);
 
 let rig: Rig;
 
 function mount(bag: Record<string, unknown> = {}) {
   rig = fakeApi(bag);
   initRuntime(rig.api);
-  initStore();
-  unsync = syncPickDrag();
   render(React.createElement(ColorisePanel));
 }
 
 const params = () => readParams(rig.develop.getState().paramBag);
 const slider = (label: string) => screen.getByLabelText<HTMLInputElement>(label);
+const field = () => rig.fields.get("Colour")!;
 const track = (label: string) => slider(label).closest("[data-slider]")?.getAttribute("data-track");
 
 describe("ColorisePanel", () => {
@@ -110,36 +102,54 @@ describe("ColorisePanel", () => {
     expect(track("Saturation")).toBe("linear-gradient(to right, rgb(51,51,51), rgb(0,0,255))");
   });
 
-  it("arms the eyedropper, reports it, and disarms on a second click", () => {
-    mount();
-    const pick = screen.getByLabelText("Pick hue from the image");
-    expect(pick.getAttribute("aria-pressed")).toBe("false");
-    fireEvent.click(pick);
-    expect(store().getState().picking).toBe(true);
-    expect(pick.getAttribute("aria-pressed")).toBe("true");
-    fireEvent.click(pick);
-    expect(store().getState().picking).toBe(false);
-    expect(pick.getAttribute("aria-pressed")).toBe("false");
+  it("puts a Colour field above the sliders, with hue and saturation only", () => {
+    mount({ [qualified("hue")]: 0.5, [qualified("saturation")]: 0.25 });
+    const el = document.querySelector("[data-colour-field]")!;
+    expect(el.getAttribute("data-colour-field")).toBe("Colour");
+    expect(el.compareDocumentPosition(slider("Hue")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(field().hue).toBe(180);
+    expect(field().saturation).toBe(25);
+    expect(field().lightness).toBeUndefined();
   });
 
-  it("disarms when core lets the pick-drag tool go (Esc, or another picker took it)", () => {
+  it("writes the field's hue and saturation as turns and a fraction, and commits once like the sliders", () => {
+    mount({ [qualified("lightness")]: 30 });
+    act(() => field().onChange({ hue: 120, saturation: 80 }));
+    expect(params()).toMatchObject({ hue: 1 / 3, saturation: 0.8, lightness: 30 });
+    expect(slider("Hue").value).toBe("120");
+    expect(rig.commits).toEqual([]);
+    act(() => field().onCommit?.());
+    expect(rig.commits).toEqual(["Colorise hue"]);
+  });
+
+  it("shows the tint as displayed: the model's colour at the current lightness, sRGB-encoded", () => {
+    mount({ [qualified("lightness")]: 30 });
+    const shown = field().toRgb!(120, 80, 50);
+    const expected = hsl2rgb(1 / 3, 0.8, 0.3).map(linearToSrgb);
+    shown.forEach((v, i) => expect(v).toBeCloseTo(expected[i], 12));
+  });
+
+  it("reads a picked or typed colour as the model's HSL hue and saturation", () => {
+    mount({ [qualified("lightness")]: 30 });
+    const { h, s } = rgb2hsl([0.8, 0.4, 0.2]);
+    const got = field().fromRgb!([0.8, 0.4, 0.2]);
+    expect(got.hue).toBeCloseTo(h * 360, 9);
+    expect(got.saturation).toBeCloseTo(s * 100, 9);
+  });
+
+  it("samples the photo with this stage's opacity at 0", () => {
     mount();
-    fireEvent.click(screen.getByLabelText("Pick hue from the image"));
-    expect(rig.pickDrag.getState().held).not.toBeNull();
-    act(() => rig.pickDrag.setState({ held: null }));
-    expect(store().getState().picking).toBe(false);
+    expect(field().pick).toEqual({ paramBag: { [qualified("opacity")]: 0 } });
   });
 });
 
-// The same panel edits a mask in the Masking panel's Adjust tab. The eyedropper
-// samples the whole photo for the photo's own tint, so it isn't there.
+// The same panel edits a mask in the Masking panel's Adjust tab.
 describe("ColorisePanel in a mask", () => {
   function mountInMask(maskBag: Record<string, unknown> = {}, photoBag: Record<string, unknown> = {}) {
     rig = fakeApi(photoBag);
     const mask = rig.inMask(maskBag);
     initRuntime(rig.api);
-    initStore();
-    render(React.createElement(ColorisePanel));
+      render(React.createElement(ColorisePanel));
     return mask;
   }
 
@@ -157,9 +167,15 @@ describe("ColorisePanel in a mask", () => {
     expect(rig.commits).toEqual(["mask: Colorise opacity"]);
   });
 
-  it("offers no eyedropper", () => {
-    mountInMask();
-    expect(screen.queryByLabelText("Pick hue from the image")).toBeNull();
+  it("offers the Colour field, writing to the mask", () => {
+    const mask = mountInMask({ [qualified("hue")]: 0.5 });
+    expect(field().hue).toBe(180);
+    expect(field().pick).not.toBe(false);
+    act(() => field().onChange({ hue: 240, saturation: 60 }));
+    act(() => field().onCommit?.());
+    expect(readParams(mask.getState().bag)).toMatchObject({ hue: 2 / 3, saturation: 0.6 });
+    expect(rig.develop.getState().paramBag).toEqual({});
+    expect(rig.commits).toEqual(["mask: Colorise hue"]);
     expect(screen.getAllByRole("slider")).toHaveLength(5);
   });
 });

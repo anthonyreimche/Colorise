@@ -5,14 +5,14 @@
 // A drag writes the scope live and commits on release, so one gesture is one
 // undo entry. Rendered with the host's React through createElement.
 //
-// It edits whatever useParamScope hands it: the photo's bag in the dock, a
-// mask's in the Masking panel's Adjust tab. The eyedropper samples the photo
-// for the photo's own tint, so it shows only in the dock.
+// A Colour field sits above the hue and saturation sliders for picking the
+// tint by eye or from the photo. It edits whatever useParamScope hands it: the
+// photo's bag in the dock, a mask's in the Masking panel's Adjust tab.
 
-import { hsl2rgb, type Params, type Vec3 } from "./model";
-import { bagPatch, readParams } from "./params";
+import { hsl2rgb, linearToSrgb, rgb2hsl, type Params, type Vec3 } from "./model";
+import { bagPatch, qualified, readParams } from "./params";
 import { api, h } from "./runtime";
-import { store } from "./store";
+import type { Hsl, Rgb } from "./safelight";
 
 /** darktable's hue slider stops, as display RGB. */
 export const HUE_TRACK =
@@ -26,21 +26,28 @@ export function saturationTrack(hue: number): string {
   return `linear-gradient(to right, rgb(51,51,51), ${css(hsl2rgb(hue, 1, 0.5))})`;
 }
 
-const PICK_LABEL = "Pick hue from the image";
+/** The tint as displayed: the model's HSL colour, read as linear Rec.709 at
+ *  the panel's lightness, encoded for the swatch. */
+export function tintToRgb(hue: number, saturation: number, lightness: number): Rgb {
+  const [r, g, b] = hsl2rgb(hue / 360, saturation / 100, lightness / 100);
+  return [linearToSrgb(r), linearToSrgb(g), linearToSrgb(b)];
+}
+
+/** A picked or typed colour as the model's hue and saturation (colorize.c's
+ *  color_picker_apply reads the encoded colour as the HSL input). Lightness
+ *  has its own slider, so the field's is left as given. */
+export function hueSaturationFromRgb(rgb: Rgb): Hsl {
+  const { h: hue, s: saturation } = rgb2hsl(rgb);
+  return { hue: hue * 360, saturation: saturation * 100, lightness: 50 };
+}
+
+/** The view as the module receives it: this stage's opacity at 0. */
+const PICK_WITHOUT_STAGE = { paramBag: { [qualified("opacity")]: 0 } };
 
 export function ColorisePanel() {
   const { Slider } = api().components;
-  const { Button, Row, Stack } = api().ui;
-  const { useEffect } = api().react;
+  const { ColourField, Stack } = api().ui;
   const scope = api().develop.useParamScope();
-  const inMask = scope.maskId !== null;
-  const picking = store()((s) => s.picking);
-  const holdsPickDrag = api().develop.usePickDragHeld();
-
-  // Core lets go of the tool on Escape or when another picker takes it.
-  useEffect(() => {
-    if (!inMask && picking && !holdsPickDrag) store().getState().setPicking(false);
-  }, [inMask, picking, holdsPickDrag]);
 
   const p = readParams(scope.getParams());
   // Drags outrun React's renders, so each change starts from the bag the
@@ -71,25 +78,24 @@ export function ColorisePanel() {
     });
 
   const hue = slider("Hue", Math.round(p.hue * 360), 360, 0, (q, v) => ({ ...q, hue: v / 360 }), HUE_TRACK);
-  const pick = inMask
-    ? null
-    : h(
-        Button,
-        {
-          size: "sm",
-          active: picking,
-          "aria-pressed": picking,
-          title: "Pick the hue and saturation from the image (Esc cancels)",
-          "aria-label": PICK_LABEL,
-          onClick: () => store().getState().setPicking(!picking),
-        },
-        "Pick",
-      );
+  const colour = h(ColourField, {
+    label: "Colour",
+    hue: Math.round(p.hue * 360),
+    saturation: Math.round(p.saturation * 100),
+    toRgb: (hueDeg: number, sat: number) => tintToRgb(hueDeg, sat, live().lightness),
+    fromRgb: hueSaturationFromRgb,
+    pick: PICK_WITHOUT_STAGE,
+    title: "The tint's hue and saturation; the eyedropper takes them from the photo",
+    onChange: ({ hue: hueDeg, saturation: sat }) =>
+      apply({ ...live(), hue: hueDeg / 360, ...(sat === undefined ? {} : { saturation: sat / 100 }) }),
+    onCommit: () => commit("hue"),
+  });
 
   return h(
     Stack,
     { gap: 2, style: { padding: 8 } },
-    h(Row, { gap: 4, align: "center" }, h("div", { style: { flex: "1 1 auto", minWidth: 0 } }, hue), pick),
+    colour,
+    hue,
     slider("Saturation", Math.round(p.saturation * 100), 100, 50, (q, v) => ({ ...q, saturation: v / 100 }), saturationTrack(p.hue)),
     slider("Lightness", p.lightness, 100, 50, (q, v) => ({ ...q, lightness: v })),
     slider("Source mix", p.sourceMix, 100, 50, (q, v) => ({ ...q, sourceMix: v })),

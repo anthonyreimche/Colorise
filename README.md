@@ -24,9 +24,11 @@ the untouched photo and 100 is the module at full strength.
 
 ### The panel
 
-- **Hue** 0–360°, over darktable's rainbow track, with an eyedropper beside it:
-  arm it, click the photo, and Hue and Saturation take the clicked colour (the
-  5×5 pixel average, read before this module's own tint). Esc cancels.
+- **Colour**: a swatch of the tint. Click it for a large hue and saturation
+  area and a hex field; the eyedropper beside it takes Hue and Saturation from
+  the clicked colour of the photo (the 5×5 pixel average, read before this
+  module's own tint). Esc cancels. Needs Safelight 3.2.8.
+- **Hue** 0–360°, over darktable's rainbow track.
 - **Saturation** 0–100 %, over a track that runs from darktable's grey to the
   current hue and repaints as Hue moves.
 - **Lightness** 0–100 %.
@@ -35,7 +37,7 @@ the untouched photo and 100 is the module at full strength.
   unchanged, and the dock header's *Reset to defaults* gives it back.
 - **In masks:** add Colorise to a mask from the Masking panel's Adjust tab to
   tint inside that mask only. The mask gets the five sliders with its own
-  values; the eyedropper, which samples the whole photo, stays in the dock.
+  values, its colour field and eyedropper included.
   Masks need the current processing: on a photo edited in an earlier Safelight,
   use Update processing first.
 
@@ -86,8 +88,7 @@ per-pixel path on display pixels, the param-bag contract, the GPU stage's
 contract (phase, space, the five uniforms and their defaults, the opacity gate,
 zero texture fetches, decimal-point literals, constants formatted from the
 model), the panel in a DOM (sliders, display scales, commits, the two coloured
-tracks, the eyedropper, masks), the eyedropper's geometry and pick, and the
-registration.
+tracks, the colour field and its pick bag, masks), and the registration.
 
 `npm run test:gpu` runs the stage through a Safelight checkout's WebGL harness
 (headless Chromium on SwiftShader): the shader compiles inside the develop

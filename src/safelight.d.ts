@@ -106,31 +106,6 @@ export interface ParamScope {
   commit(label: string): void;
 }
 
-/** A point in the develop canvas's pixels. */
-export interface CanvasPoint {
-  x: number;
-  y: number;
-}
-
-/** An eyedropper or on-image target tool that holds the canvas's pick-drag. */
-export interface PickDragTool {
-  /** A press on the image, as it happens. */
-  onPress?(point: CanvasPoint): void;
-  /** A press on the image with the colour the view shows there, sRGB 0-1,
-   *  once the probe answers; never for a press released before that. */
-  onDown?(rgb: readonly [number, number, number], point: CanvasPoint): void;
-  /** The drag, after an onDown. */
-  onMove?(point: CanvasPoint): void;
-  /** The drag ended, after an onDown. */
-  onUp?(): void;
-}
-
-export interface CaptureOptions {
-  asShown?: boolean;
-  /** Merged over the photo's extension-stage params for this capture only. */
-  paramBag?: Record<string, unknown>;
-}
-
 /** The core Develop slider (src/ui/components/Slider.tsx). */
 export interface SliderProps {
   label: string;
@@ -177,10 +152,59 @@ export interface StackProps {
   style?: CSSProperties;
 }
 
+/** Display-encoded sRGB, 0 to 1. */
+export type Rgb = readonly [number, number, number];
+
+export interface Hsl {
+  /** Degrees, 0 to 360. */
+  hue: number;
+  /** Percent, 0 to 100. */
+  saturation: number;
+  /** Percent, 0 to 100. */
+  lightness: number;
+}
+
+/** The channels a field has: always hue, saturation and lightness when given. */
+export interface ColourValue {
+  hue: number;
+  saturation?: number;
+  lightness?: number;
+}
+
+export interface ColourFieldProps {
+  label: string;
+  /** Degrees, 0 to 360. */
+  hue: number;
+  /** Percent, 0 to 100. Leave it out for a hue-only field. */
+  saturation?: number;
+  /** Percent, 0 to 100. Give it for a field that also sets lightness. */
+  lightness?: number;
+  /** Live while a drag lasts, and once for a key, hex or pick; carries the
+   *  field's channels only. */
+  onChange(value: ColourValue): void;
+  /** A drag ended, or a key, hex or pick changed the colour. */
+  onCommit?(): void;
+  /** The colour to show for hue, saturation and lightness (a missing channel
+   *  comes as 100 and 50), display sRGB 0 to 1. Default: HSL. */
+  toRgb?(hue: number, saturation: number, lightness: number): Rgb;
+  /** A typed or picked colour (display sRGB 0 to 1) in the field's channels.
+   *  Default: HSL. */
+  fromRgb?(rgb: Rgb): Hsl;
+  /** The eyedropper. `true` (the default) takes the colour the view shows;
+   *  `{ paramBag }` samples a capture with that bag merged over the photo's,
+   *  to leave the extension's own effect out; `false` hides it. */
+  pick?: boolean | {
+    paramBag: Record<string, unknown>;
+  };
+  /** The swatch's tooltip. */
+  title?: string;
+}
+
 export interface UiKit {
   Button: ComponentType<ButtonProps>;
   Row: ComponentType<RowProps>;
   Stack: ComponentType<StackProps>;
+  ColourField(props: ColourFieldProps): import("react").JSX.Element;
   tokens: Readonly<Record<string, string>>;
 }
 
@@ -200,15 +224,8 @@ export interface SafelightAPI {
     useDevelopStore: StoreApi<DevelopStoreState>;
   };
   develop: {
-    captureFrame(params: DevelopParams, options?: CaptureOptions): Promise<ImageBitmap>;
     /** The mask's scope inside a mask's Adjust tab, the photo's anywhere else. */
     useParamScope(): ParamScope;
-    /** Hold the canvas's pick-drag tool, or with null let go of it. A held
-     *  Ctrl, Cmd or Space pans instead, and Escape lets go. One extension
-     *  holds it at a time: the last to set it. */
-    setPickDrag(tool: PickDragTool | null): void;
-    /** React hook: whether this extension holds the pick-drag tool. */
-    usePickDragHeld(): boolean;
   };
 }
 

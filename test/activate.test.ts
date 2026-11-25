@@ -6,8 +6,7 @@ import { activate, deactivate } from "../src/index";
 import { DEFAULT_PARAMS } from "../src/model";
 import { ColorisePanel } from "../src/Panel";
 import { PARAM_KEYS, STAGE_ID, qualified, readParams } from "../src/params";
-import { store } from "../src/store";
-import { fakeApi, fakeBitmap } from "./support/fake-api";
+import { fakeApi } from "./support/fake-api";
 
 describe("activate", () => {
   afterEach(() => deactivate());
@@ -25,24 +24,6 @@ describe("activate", () => {
     });
   });
 
-  it("holds core's pick-drag tool while the eyedropper is armed and lets it go when off", () => {
-    const rig = fakeApi();
-    activate(rig.api);
-    expect(rig.pickDrag.getState().held).toBeNull();
-    store().getState().setPicking(true);
-    expect(rig.pickDrag.getState().held).not.toBeNull();
-    store().getState().setPicking(false);
-    expect(rig.pickDrag.getState().held).toBeNull();
-  });
-
-  it("captures the view without Colorise on a press", () => {
-    const rig = fakeApi({}, () => Promise.resolve(fakeBitmap(1, 1)));
-    activate(rig.api);
-    store().getState().setPicking(true);
-    rig.pickDrag.getState().held?.onPress?.({ x: 1, y: 1 });
-    expect(rig.captures).toEqual([{ [qualified("opacity")]: 0 }]);
-  });
-
   it("offers the panel in masks, owning exactly the keys the stage's mask copy reads", () => {
     const rig = fakeApi();
     activate(rig.api);
@@ -52,22 +33,19 @@ describe("activate", () => {
     expect(owns).toEqual(rig.stages[0].uniforms.map((u) => `${STAGE_ID}.${u.key}`).sort());
   });
 
+  it("drops the stage on deactivate", () => {
+    const rig = fakeApi();
+    activate(rig.api);
+    deactivate();
+    expect(rig.unregisteredStages).toEqual([STAGE_ID]);
+  });
+
   it("resets every key from the dock header in one commit", () => {
     const rig = fakeApi({ [qualified("hue")]: 0.7, [qualified("opacity")]: 55 });
     activate(rig.api);
     rig.panels[0].onReset?.();
     expect(readParams(rig.develop.getState().paramBag)).toEqual(DEFAULT_PARAMS);
     expect(rig.commits).toEqual(["Colorise reset"]);
-  });
-
-  it("disarms the picker, lets the pick-drag go and drops the stage on deactivate", () => {
-    const rig = fakeApi();
-    activate(rig.api);
-    store().getState().setPicking(true);
-    deactivate();
-    expect(store().getState().picking).toBe(false);
-    expect(rig.unregisteredStages).toEqual([STAGE_ID]);
-    expect(rig.pickDrag.getState().held).toBeNull();
   });
 });
 

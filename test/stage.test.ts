@@ -112,8 +112,8 @@ describe("colorise stage", () => {
     expect(forVersion(stage.helpers ?? "", 1)).not.toMatch(/\bcz(Decode|Encode)\b/);
   });
 
-  it("needs Safelight 3.2.0, the first to define SL_PROCESS_VERSION", () => {
-    expect(manifest.minAppVersion).toBe("3.2.0");
+  it("needs Safelight 3.2.8, for the colour field (3.2.0 first defined SL_PROCESS_VERSION)", () => {
+    expect(manifest.minAppVersion).toBe("3.2.8");
   });
 
   it("gives version 3 the version 2 path, one directive per line", () => {

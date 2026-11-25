@@ -1,17 +1,17 @@
 // A stand-in Safelight API over real React and zustand: the develop store
-// holds a param bag and records commits, registrations and captures are
-// recorded, the pick-drag tool is held as core holds it, and the slider and ui kit are plain DOM so Testing Library can
-// find controls by their labels.
+// holds a param bag, commits and registrations are recorded, the colour field
+// records its props, and the slider and ui kit are plain DOM so Testing Library
+// can find controls by their labels.
 
 import * as React from "react";
 import { create } from "zustand";
 import type {
   ButtonProps,
+  ColourFieldProps,
   DevelopParams,
   DevelopStoreState,
   PanelContribution,
   ParamScope,
-  PickDragTool,
   ProcessingStageContribution,
   RowProps,
   SafelightAPI,
@@ -42,11 +42,26 @@ const Slider = ({ label, value, min, max, step, onChange, onCommit, trackBackgro
     }),
   );
 
+/** The colour fields rendered, by label: the props of the latest render, so a
+ *  test reads hue/saturation/pick and calls onChange/onCommit as the field would. */
+const fields = new Map<string, ColourFieldProps>();
+
+const ColourField = (props: ColourFieldProps) => {
+  fields.set(props.label, props);
+  return e("div", {
+    "data-colour-field": props.label,
+    "data-hue": props.hue,
+    "data-saturation": props.saturation,
+    "data-lightness": props.lightness,
+  });
+};
+
 const ui: UiKit = {
   Button: ({ children, onClick, disabled, title, "aria-label": ariaLabel, "aria-pressed": ariaPressed }: ButtonProps) =>
     e("button", { type: "button", onClick, disabled, title, "aria-label": ariaLabel, "aria-pressed": ariaPressed }, children),
   Row: ({ children }: RowProps) => e("div", null, children),
   Stack: ({ children }: StackProps) => e("div", null, children),
+  ColourField,
   tokens: {
     surface0: "#525252",
     border: "#3b3b3b",
@@ -57,34 +72,26 @@ const ui: UiKit = {
 // The core's develop params are opaque to the extension; any object stands in.
 const PARAMS = {} as DevelopParams;
 
-export function fakeBitmap(width = 2, height = 2): ImageBitmap {
-  return { width, height, close: () => undefined };
-}
-
 export interface Rig {
   api: SafelightAPI;
   develop: StoreApi<DevelopStoreState>;
   commits: string[];
-  /** The paramBag option of each captureFrame call. */
-  captures: Record<string, unknown>[];
   stages: ProcessingStageContribution[];
   panels: PanelContribution[];
   unregisteredStages: string[];
-  /** The pick-drag tool this extension holds, or null. */
-  pickDrag: StoreApi<{ held: PickDragTool | null }>;
+  /** The latest props of each ColourField rendered, by label. */
+  fields: Map<string, ColourFieldProps>;
   /** Puts what renders from here on inside a mask holding `bag`, as the core's
    *  Masking panel does; returns the mask's store. */
   inMask(bag?: Record<string, unknown>): StoreApi<{ bag: Record<string, unknown> }>;
 }
 
-/** `bitmap` answers captureFrame; without it the capture never settles. */
-export function fakeApi(bag: Record<string, unknown> = {}, bitmap?: () => Promise<ImageBitmap>): Rig {
+export function fakeApi(bag: Record<string, unknown> = {}): Rig {
   const commits: string[] = [];
-  const captures: Record<string, unknown>[] = [];
   const stages: ProcessingStageContribution[] = [];
   const panels: PanelContribution[] = [];
   const unregisteredStages: string[] = [];
-  const pickDrag = create<{ held: PickDragTool | null }>()(() => ({ held: null }));
+  fields.clear();
   let mask: StoreApi<{ bag: Record<string, unknown> }> | null = null;
   const develop: StoreApi<DevelopStoreState> = create<DevelopStoreState>()((set) => ({
     photoId: "p1",
@@ -124,10 +131,6 @@ export function fakeApi(bag: Record<string, unknown> = {}, bitmap?: () => Promis
       useDevelopStore: develop,
     },
     develop: {
-      captureFrame: (_params, options) => {
-        captures.push(options?.paramBag ?? {});
-        return bitmap ? bitmap() : new Promise<ImageBitmap>(() => undefined);
-      },
       // Subscribed, as the core's scopes are, so a write re-renders. A rig is
       // inside a mask or not for every render it makes, so the hook called is too.
       useParamScope: () => {
@@ -138,13 +141,11 @@ export function fakeApi(bag: Record<string, unknown> = {}, bitmap?: () => Promis
         develop((s) => s.paramBag);
         return photoScope;
       },
-      setPickDrag: (tool) => pickDrag.setState({ held: tool }),
-      usePickDragHeld: () => pickDrag((s) => s.held !== null),
     },
   };
   const inMask = (bag: Record<string, unknown> = {}) => {
     mask = create<{ bag: Record<string, unknown> }>()(() => ({ bag }));
     return mask;
   };
-  return { api, develop, commits, captures, stages, panels, unregisteredStages, pickDrag, inMask };
+  return { api, develop, commits, stages, panels, unregisteredStages, fields, inMask };
 }
