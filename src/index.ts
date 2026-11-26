@@ -32,6 +32,7 @@ export function activate(host: SafelightAPI): void {
     title: "Colorise",
     component: ColorisePanel,
     defaultDock: { module: "develop", direction: "right", order: 7, width: 268 },
+    modules: ["develop"],
     onReset: reset,
     // The same panel edits a mask's tint in the Masking panel's Adjust tab.
     mask: { component: ColorisePanel, owns: PARAM_KEYS.map(qualified) },

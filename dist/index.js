@@ -310,6 +310,7 @@ function q(e) {
 			order: 7,
 			width: 268
 		},
+		modules: ["develop"],
 		onReset: K,
 		mask: {
 			component: j,
